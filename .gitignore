@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+.env
+
+# superseded working drafts
+*.bak
+
+# tooling scratch
+.playwright-mcp/
+*.tmp.mts
