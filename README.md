@@ -111,7 +111,7 @@ Measured on the actual prompt and tool schemas (~2,040 input + ~300 output token
 | Conversational analysis (`chat`) | **Real** (Claude tool-use loop) — optional, nothing depends on it |
 | Strategy evaluation, proposals, caps, monitoring cycle | **Real and deterministic** — no model call, runs with no API key |
 | DEX quotes (`live-quote`) | **Real** (Velar STX/sBTC pool, mainnet) |
-| Swap transaction + post-conditions (`live-execute`) | **Built, signed, and structurally verified** against Velar's live router: wire round-trip preserves the txid and all 3 post-conditions in Deny mode, and the contract's `apply` function arity matches. `--broadcast` sends it. Not yet settled on mainnet. |
+| Swap transaction + post-conditions (`live-execute`) | **Settled on mainnet.** [`0x85e1a2ff4fda368a…`](https://explorer.hiro.so/txid/0x85e1a2ff4fda368a6bcebbb72f5d0c1fa086e7315df37d67a725a226a806a9a9?chain=mainnet) — 5 STX → 1668 sats sBTC, Deny mode, all 3 post-conditions enforced by the chain. |
 | Paper trade fills | **Simulated** — 30bps fee + size-dependent slippage against live mid-price |
 | In-wallet signing (browser) | **Milestone 2** — @stacks/connect approval page |
 
@@ -136,7 +136,9 @@ Two of these are regression tests for money-losing bugs found during development
 
 Balances and trade amounts are held as **integer base units** (microSTX, satoshis), never floats, so they cannot drift and are always representable on-chain — `tests/units.test.ts` asserts this.
 
-**Known limitations, stated plainly:** no live swap has been broadcast to mainnet yet, so post-conditions are verified as correctly constructed but not as enforced in production; there is no devnet/fork harness exercising the swap against real contract state.
+**A live swap has settled on mainnet** — [`0x85e1a2ff4fda368a…`](https://explorer.hiro.so/txid/0x85e1a2ff4fda368a6bcebbb72f5d0c1fa086e7315df37d67a725a226a806a9a9?chain=mainnet), 5 STX → 1668 sats sBTC, `post_condition_mode: deny` with all three conditions enforced by the chain. The non-custodial guarantee is demonstrated, not merely described.
+
+**Known limitations, stated plainly:** there is no devnet/fork harness exercising the swap against real contract state, and execution routes through a single venue.
 
 ## Roadmap
 
