@@ -9,3 +9,9 @@ data/
 # tooling scratch
 .playwright-mcp/
 *.tmp.mts
+
+# Grant application drafts — private working documents, not product docs.
+# They contain positioning strategy and applicant details that do not belong
+# in a public repository. Kept one directory up, outside the repo.
+GRANT_APPLICATION.md
+PORTAL_ANSWERS.md
