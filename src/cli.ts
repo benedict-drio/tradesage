@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createInterface } from "node:readline/promises";
 import { explainTick, runAgent } from "./agent.js";
 import {
   approveProposal,
@@ -335,6 +336,35 @@ async function main() {
         throw new Error(
           "Set STACKS_PRIVATE_KEY to a funded Stacks key to execute live swaps.\nThe key never leaves this machine and the agent has no access to this command.",
         );
+      }
+      if (broadcast) {
+        // Irreversible and spends real funds: build and show it first, then
+        // require an explicit typed confirmation.
+        const preview = await executeLiveSwap({
+          from,
+          to,
+          amountIn: amount,
+          senderKey,
+          broadcast: false,
+        });
+        const quote = await getLiveQuote(from, to, amount, preview.senderAddress);
+        console.log("\nAbout to send a REAL mainnet transaction");
+        console.log(`  From wallet: ${preview.senderAddress}`);
+        console.log(`  Balance:     ${preview.stxBalance} STX`);
+        console.log(`  Swapping:    ${amount} ${from} -> ~${quote.amountOut} ${to}`);
+        console.log(`  Network fee: ${preview.feeStx} STX`);
+        console.log(`  Contract:    ${preview.contract}::${preview.functionName}`);
+        if (preview.shortfall) {
+          console.error(`\nCannot proceed: ${preview.shortfall}`);
+          process.exit(1);
+        }
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        const answer = await rl.question('\nType "send" to broadcast, anything else to cancel: ');
+        rl.close();
+        if (answer.trim().toLowerCase() !== "send") {
+          console.log("Cancelled. Nothing was sent.");
+          break;
+        }
       }
       const result = await executeLiveSwap({ from, to, amountIn: amount, senderKey, broadcast });
       console.log(`\n${broadcast ? "Broadcast" : "Dry run (signed, not sent)"}`);

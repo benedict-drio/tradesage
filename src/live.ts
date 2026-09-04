@@ -1,4 +1,5 @@
 import { VelarSDK, type SwapResponse } from "@velarprotocol/velar-sdk";
+import { getOnchainBalances } from "./market.js";
 import {
   broadcastTransaction,
   makeContractCall,
@@ -93,6 +94,10 @@ export interface LiveExecutionResult {
   functionName: string;
   postConditions: unknown[];
   senderAddress: string;
+  feeStx: number;
+  stxBalance: number;
+  /** null when the wallet can cover the swap; a reason when it cannot */
+  shortfall: string | null;
 }
 
 /**
@@ -121,8 +126,22 @@ export async function executeLiveSwap(input: {
     network: "mainnet",
   });
 
+  // Preflight against real balances before spending anything. Without this the
+  // first live attempt fails inside the node with a rejection reason rather
+  // than telling the caller plainly that the wallet is short.
+  const feeMicro = transaction.auth.spendingCondition?.fee ?? 0n;
+  const feeStx = Number(feeMicro) / 1e6;
+  const { stx: stxBalance } = await getOnchainBalances(senderAddress);
+  const stxNeeded = feeStx + (input.from === "STX" ? input.amountIn : 0);
+  const shortfall =
+    stxBalance < stxNeeded
+      ? `wallet holds ${stxBalance} STX but this needs ${stxNeeded.toFixed(6)} STX ` +
+        `(${input.from === "STX" ? `${input.amountIn} to swap + ` : ""}${feeStx.toFixed(6)} fee)`
+      : null;
+
   let broadcast = false;
   if (input.broadcast) {
+    if (shortfall) throw new Error(`Cannot broadcast: ${shortfall}`);
     const result = await broadcastTransaction({ transaction, network: "mainnet" });
     // A rejected broadcast returns `{ reason, reason_data }`, never `{ error }`.
     // Checking for "error" would treat every rejection as a success and report a
@@ -144,5 +163,8 @@ export async function executeLiveSwap(input: {
     functionName: payload.functionName,
     postConditions: payload.postConditions,
     senderAddress,
+    feeStx,
+    stxBalance,
+    shortfall,
   };
 }
