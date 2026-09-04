@@ -29,7 +29,7 @@ import { getPrices } from "./market.js";
 import { ASSETS } from "./config.js";
 import { describeRule, validateRule } from "./rules.js";
 import { parseStrategy } from "./parse.js";
-import { formatBase, parseBase } from "./units.js";
+import { formatBase, parseBase, toBase } from "./units.js";
 import {
   newId,
   proposalStore,
@@ -330,16 +330,29 @@ async function main() {
       if (!from || !to || !amount) {
         throw new Error("Usage: tradesage live-quote <from> <to> <amount>  (e.g. live-quote STX sBTC 100)");
       }
-      const quote = await getLiveQuote(from, to, amount);
-      console.log(`\nLive quote (Velar, mainnet)`);
-      console.log(`  ${quote.amountIn} ${quote.from} -> ${quote.amountOut} ${quote.to}`);
-      console.log(`  Route: ${quote.route.join(" -> ")}\n`);
+      const quote = await getLiveQuote(from, to, toBase(amount, from));
+      console.log(`\nBest route (mainnet): ${quote.venue}`);
+      console.log(
+        `  ${formatBase(quote.amountIn, from)} ${from} -> ${formatBase(quote.amountOut, to)} ${to}` +
+          `  (${quote.feeBps}bps${quote.indicative ? ", indicative" : ""})`,
+      );
+      if (quote.considered.length > 1) {
+        console.log("\n  venues quoted:");
+        for (const c of quote.considered) {
+          const mark = c.venue === quote.venue ? "->" : "  ";
+          console.log(`   ${mark} ${c.venue.padEnd(14)} ${formatBase(c.out, to)} ${to}  (${c.feeBps}bps)`);
+        }
+      }
+      for (const f of quote.failed) console.log(`   !  ${f.venue}: ${f.reason}`);
+      console.log();
       break;
     }
     case "live-execute": {
       const [from, to, amountStr] = rest.filter((a) => !a.startsWith("--"));
       const amount = Number(amountStr);
       const broadcast = rest.includes("--broadcast");
+      // Pin a venue instead of routing on price, e.g. --venue=bitflow-dlmm
+      const venue = rest.find((a) => a.startsWith("--venue="))?.split("=")[1];
       if (!from || !to || !amount) {
         throw new Error(
           "Usage: tradesage live-execute <from> <to> <amount> [--broadcast]\nWithout --broadcast this is a dry run: it builds and signs the real swap transaction but does not send it.",
@@ -356,15 +369,19 @@ async function main() {
         const preview = await executeLiveSwap({
           from,
           to,
-          amountIn: amount,
+          amountIn: toBase(amount, from),
           senderKey,
           broadcast: false,
+          venue,
         });
-        const quote = await getLiveQuote(from, to, amount, preview.senderAddress);
         console.log("\nAbout to send a REAL mainnet transaction");
         console.log(`  From wallet: ${preview.senderAddress}`);
         console.log(`  Balance:     ${preview.stxBalance} STX`);
-        console.log(`  Swapping:    ${amount} ${from} -> ~${quote.amountOut} ${to}`);
+        console.log(`  Venue:       ${preview.venue}`);
+        console.log(
+          `  Swapping:    ${formatBase(preview.amountIn, from)} ${from} -> ~${formatBase(preview.expectedOut, to)} ${to}`,
+        );
+        console.log(`  Guaranteed:  at least ${formatBase(preview.minOut, to)} ${to}, or the chain aborts`);
         console.log(`  Network fee: ${preview.feeStx} STX`);
         console.log(`  Contract:    ${preview.contract}::${preview.functionName}`);
         if (preview.shortfall) {
@@ -379,10 +396,19 @@ async function main() {
           break;
         }
       }
-      const result = await executeLiveSwap({ from, to, amountIn: amount, senderKey, broadcast });
+      const result = await executeLiveSwap({
+        from,
+        to,
+        amountIn: toBase(amount, from),
+        senderKey,
+        broadcast,
+        venue,
+      });
       console.log(`\n${broadcast ? "Broadcast" : "Dry run (signed, not sent)"}`);
       console.log(`  Sender:   ${result.senderAddress}`);
+      console.log(`  Venue:    ${result.venue}`);
       console.log(`  Contract: ${result.contract}::${result.functionName}`);
+      console.log(`  Min out:  ${formatBase(result.minOut, to)} ${to} (chain-enforced)`);
       console.log(`  Txid:     ${result.txid}`);
       console.log(`  Post-conditions (Deny mode — chain aborts if violated):`);
       console.log(
@@ -428,8 +454,9 @@ Usage: tradesage <command>
 
   live-quote <from> <to> <amt>              Real Velar (mainnet) quote, e.g. STX sBTC 100
   live-execute <from> <to> <amt> [--broadcast]
-                      Build + sign the real post-conditioned swap (dry run unless --broadcast;
-                      needs STACKS_PRIVATE_KEY)
+                      Build + sign the real post-conditioned swap across the best venue
+                      (dry run unless --broadcast; --venue=<name> pins one; needs
+                      STACKS_PRIVATE_KEY)
 
 Trades inside your session caps auto-execute; everything else waits for your sign-off.
 Monitoring, caps, and execution run without any AI provider — only natural-language
