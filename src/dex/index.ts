@@ -35,8 +35,9 @@ export async function routeBestQuote(
   from: string,
   to: string,
   amountIn: bigint,
+  adapters: DexAdapter[] = ADAPTERS,
 ): Promise<RoutingResult> {
-  const eligible = ADAPTERS.filter((a) => a.supports(from, to));
+  const eligible = adapters.filter((a) => a.supports(from, to));
   if (eligible.length === 0) {
     throw new Error(`No configured venue trades ${from}/${to}`);
   }

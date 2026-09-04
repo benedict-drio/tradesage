@@ -36,7 +36,9 @@ Built for the Stacks Endowment RFP **"Trading Bots powered by AI"** — automate
                               └─────────────────────────────────┘
 ```
 
-Everything is an existing dependency: the [Claude API](https://platform.claude.com) (tool-use agent loop), the [Velar SDK](https://docs.velar.co) (real DEX quotes, swap construction, post-conditions), the [Hiro Stacks API](https://www.hiro.so/stacks-api) (on-chain data), [@stacks/transactions](https://github.com/hirosystems/stacks.js) (signing), and CoinGecko (USD prices). No custom infrastructure.
+Execution routes across venues. **Bitflow DLMM** is called directly — quotes read its own active-bin price on chain, so no DEX API sits in the path — and **Velar** is the fallback via its SDK. A venue that fails to quote is skipped rather than failing the route.
+
+External dependencies are a Stacks node ([Hiro](https://www.hiro.so/stacks-api)) and a price feed (CoinGecko), both required; plus Velar's API, which is optional — if it goes down, routing continues on DLMM with worse pricing rather than breaking.
 
 ## Quickstart
 
@@ -110,7 +112,7 @@ Measured on the actual prompt and tool schemas (~2,040 input + ~300 output token
 | Plain-English → rule (`add`) | **Real and deterministic** — grammar-based, no model, no key, no network |
 | Conversational analysis (`chat`) | **Real** (Claude tool-use loop) — optional, nothing depends on it |
 | Strategy evaluation, proposals, caps, monitoring cycle | **Real and deterministic** — no model call, runs with no API key |
-| DEX quotes (`live-quote`) | **Real** (Velar STX/sBTC pool, mainnet) |
+| DEX quotes (`live-quote`) | **Real, routed across venues** — Bitflow DLMM priced from its own on-chain active-bin price, Velar via its SDK; best price wins |
 | Swap transaction + post-conditions (`live-execute`) | **Settled on mainnet.** [`0x85e1a2ff4fda368a…`](https://explorer.hiro.so/txid/0x85e1a2ff4fda368a6bcebbb72f5d0c1fa086e7315df37d67a725a226a806a9a9?chain=mainnet) — 5 STX → 1668 sats sBTC, Deny mode, all 3 post-conditions enforced by the chain. |
 | Paper trade fills | **Simulated** — 30bps fee + size-dependent slippage against live mid-price |
 | In-wallet signing (browser) | **Milestone 2** — @stacks/connect approval page |
@@ -128,13 +130,15 @@ Example of what the chain enforces on a live 25 STX → sBTC swap (Deny mode —
 ## Tests
 
 ```bash
-npm test        # rule evaluator, cap arithmetic, concurrency (no network, no API key)
+npm test        # rules, caps, units, parser, routing, agent schemas (no network, no API key)
 npm run typecheck
 ```
 
 Two of these are regression tests for money-losing bugs found during development: a rebalance rule whose target was unreachable while an untargeted asset was held (it re-traded every cycle, bleeding fees), and concurrent monitoring cycles double-executing the same strategy. Both are fixed; the tests keep them fixed.
 
 Balances and trade amounts are held as **integer base units** (microSTX, satoshis), never floats, so they cannot drift and are always representable on-chain — `tests/units.test.ts` asserts this.
+
+**Two live swaps have settled on mainnet, one per venue** — Bitflow DLMM [`0xea855d7ef980f01f…`](https://explorer.hiro.so/txid/0xea855d7ef980f01fdff25f989692f91521817c503294b5b22418e8bb6da73894?chain=mainnet) (2 STX → 661 sats) and Velar below. Both enforced their post-conditions.
 
 **A live swap has settled on mainnet** — [`0x85e1a2ff4fda368a…`](https://explorer.hiro.so/txid/0x85e1a2ff4fda368a6bcebbb72f5d0c1fa086e7315df37d67a725a226a806a9a9?chain=mainnet), 5 STX → 1668 sats sBTC, `post_condition_mode: deny` with all three conditions enforced by the chain. The non-custodial guarantee is demonstrated, not merely described.
 
