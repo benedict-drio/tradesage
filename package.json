@@ -1,7 +1,7 @@
 {
   "name": "tradesage",
   "version": "0.1.0",
-  "description": "TradeSage \u2014 non-custodial AI trading copilot for Stacks DEXs (paper-trading prototype)",
+  "description": "TradeSage — non-custodial AI trading copilot for Stacks DEXs (paper-trading prototype)",
   "type": "module",
   "bin": {
     "tradesage": "./dist/cli.js"
@@ -26,6 +26,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.3",
     "@stacks/transactions": "^7.5.0",
+    "@stacks/wallet-sdk": "^7.6.0",
     "@velarprotocol/velar-sdk": "^0.7.6",
     "zod": "^4.0.0"
   },

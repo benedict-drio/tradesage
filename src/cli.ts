@@ -1,5 +1,18 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
+
+// Load .env if present. The README tells users to create one, so it has to be
+// read — otherwise a key placed there is silently ignored. Variables already
+// set in the shell win, matching how --env-file behaves.
+if (existsSync(".env")) {
+  try {
+    process.loadEnvFile(".env");
+  } catch {
+    // Malformed or unreadable .env should not stop a keyless command working.
+  }
+}
+
 import { explainTick, runAgent } from "./agent.js";
 import {
   approveProposal,
@@ -11,6 +24,7 @@ import {
   valuePortfolio,
 } from "./engine.js";
 import { executeLiveSwap, getLiveQuote } from "./live.js";
+import { resolveSigner } from "./wallet.js";
 import { getPrices } from "./market.js";
 import { ASSETS } from "./config.js";
 import { describeRule, validateRule } from "./rules.js";
@@ -331,12 +345,11 @@ async function main() {
           "Usage: tradesage live-execute <from> <to> <amount> [--broadcast]\nWithout --broadcast this is a dry run: it builds and signs the real swap transaction but does not send it.",
         );
       }
-      const senderKey = process.env.STACKS_PRIVATE_KEY;
-      if (!senderKey) {
-        throw new Error(
-          "Set STACKS_PRIVATE_KEY to a funded Stacks key to execute live swaps.\nThe key never leaves this machine and the agent has no access to this command.",
-        );
-      }
+      // Accepts a hex private key or a seed phrase; derivation is local and the
+      // credential never leaves this machine.
+      const signer = await resolveSigner(process.env.STACKS_PRIVATE_KEY);
+      const senderKey = signer.privateKey;
+      console.log(`\nWallet ${signer.address} (from ${signer.source})`);
       if (broadcast) {
         // Irreversible and spends real funds: build and show it first, then
         // require an explicit typed confirmation.
