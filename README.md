@@ -58,6 +58,10 @@ npm run dev strategies      # see the compiled rules
 
 npm run dev tick            # one monitoring cycle — deterministic, no API key
 
+# note: pass flags after `--`, or npm swallows them:
+#   npm run dev -- init --reset
+#   npm run dev -- tick --explain
+
 # session caps — the automation dial
 npm run dev caps set 250 750   # $250 per trade, $750 per day
 npm run dev caps on            # trades inside caps now auto-execute
@@ -66,8 +70,8 @@ npm run dev approve <id>
 
 # live path (real Velar, mainnet)
 npm run dev live-quote STX sBTC 100
-STACKS_PRIVATE_KEY=... npm run dev live-execute STX sBTC 25              # dry run: builds + signs
-STACKS_PRIVATE_KEY=... npm run dev live-execute STX sBTC 25 --broadcast  # sends it
+STACKS_PRIVATE_KEY=... npm run dev live-execute STX sBTC 25                 # dry run: builds + signs
+STACKS_PRIVATE_KEY=... npm run dev -- live-execute STX sBTC 25 --broadcast  # sends it
 ```
 
 ### Does this need an API key? No.
