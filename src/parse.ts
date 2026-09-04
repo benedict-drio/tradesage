@@ -1,4 +1,5 @@
 import { ASSETS } from "./config.js";
+import { validateRule } from "./rules.js";
 import type { StrategyRule } from "./store.js";
 
 /**
@@ -242,6 +243,25 @@ function parseThreshold(text: string): ParseResult {
  * change what happens to someone's money.
  */
 export function parseStrategy(text: string): ParseResult {
+  const parsed = readStrategy(text);
+  if (!parsed.ok) return parsed;
+
+  // The engine is the authority on what a valid rule is, so ask it rather than
+  // duplicating its range checks here. Without this the parser can emit a rule
+  // that reads fine and can never be saved — fuzzing found exactly that, via
+  // "drift exceeds 557320" yielding a 557320-point drift threshold.
+  try {
+    validateRule(parsed.rule, Object.keys(ASSETS));
+  } catch (err) {
+    return fail(
+      (err as Error).message.replace(/\.$/, ""),
+      'Correct that value, or enter the rule directly with "tradesage strategy add ...".',
+    );
+  }
+  return parsed;
+}
+
+function readStrategy(text: string): ParseResult {
   const t = text.trim();
   if (!t) return fail("empty input", 'Describe a strategy, e.g. "DCA 200 STX into sBTC weekly".');
 
